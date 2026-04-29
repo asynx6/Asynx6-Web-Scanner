@@ -1,0 +1,6 @@
+requests
+rich
+beautifulsoup4
+urllib3
+playwright
+mysql-connector-python
