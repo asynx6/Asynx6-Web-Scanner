@@ -1,14 +1,31 @@
-# Asynx6 Web Scanner V2
+# Asynx6 Web Scanner V3
 
 Advanced web security reconnaissance suite. Detects sensitive file leakage, hidden
 directories, server misconfigurations, modern web vulnerabilities (JWT, GraphQL,
-SSRF), and produces structured PoC reports.
+SSRF, WebSocket), and produces structured PoC reports.
 
 Equipped with **Apex Predator Logic**: filters false positives from WAF/CDN
 protection (HCDN), distinguishes real findings from SPA soft-404s, and applies
 adaptive stealth with jitter + header morphing.
 
-## V2 Highlights
+## V3 Highlights (over V2)
+
+### Major features
+- **SSRF Collaborator server** — out-of-band SSRF detection via DNS + HTTP callbacks
+- **SQLite storage layer** — persistent scan history with diff between scans
+- **CI/CD mode** — exit codes, baseline comparison, SARIF for GitHub Code Scanning
+- **Web dashboard** — FastAPI + HTMX, view scan history in browser
+- **Plugin system** — entry-point discovery via `importlib.metadata`
+- **ML false-positive filter** — TF-IDF + LogReg (optional, requires scikit-learn)
+- **MkDocs documentation site** — install, quickstart, CI, profiles, modules
+
+### Quick wins
+- **WebSocket security scanner** — CSWSH + endpoint discovery
+- **Notifications** — Slack, Discord, Telegram, generic webhook
+- **i18n** — English + Indonesian output
+- **5 scan profiles** — quick-triage, owasp-top10, deep, stealth, ci
+
+## V2 Foundation (preserved)
 
 - Clean 3-layer architecture (`core` / `recon-vuln-fuzz-exfil-reporting` / `engine`)
 - New vuln modules: **JWT**, **GraphQL**, **SSRF**, **open redirect**, **CORS**
@@ -17,7 +34,7 @@ adaptive stealth with jitter + header morphing.
 - **SARIF / JSON / HTML** export with **CVSS v3.1** scoring
 - **Interactive TUI** dashboard (Textual)
 - **Adaptive per-host rate limiting** (token bucket)
-- **Comprehensive test suite** (pytest, ≥70% coverage, CI on GitHub Actions)
+- **Comprehensive test suite** (pytest, ≥75% coverage, CI on GitHub Actions)
 - Type hints throughout, structured logging, modern packaging (`pyproject.toml`)
 
 ## Installation
@@ -48,16 +65,36 @@ mypy asynx6
 python index.py https://example.com
 ```
 
+### Scan profiles
+
+```bash
+python index.py https://example.com --profile quick-triage
+python index.py https://example.com --profile owasp-top10
+python index.py https://example.com --profile deep
+python index.py https://example.com --profile stealth
+python index.py https://example.com --profile ci
+```
+
 ### Batch (file of targets)
 
 ```bash
 python index.py list_target.txt --aggressive
 ```
 
-### Interactive TUI
+### Interactive TUI / Web dashboard
 
 ```bash
-python index.py --tui
+python index.py --tui               # Textual terminal UI
+python index.py https://x.test --serve   # Web dashboard on :8080
+```
+
+### CI/CD mode
+
+```bash
+python -m asynx6.ci https://target.com \
+  --format sarif \
+  --output results.sarif \
+  --severity-threshold HIGH
 ```
 
 ### CLI flags
@@ -65,17 +102,20 @@ python index.py --tui
 ```
 python index.py [TARGET] [OPTIONS]
 
-TARGET               URL or path to .txt list of targets (positional, optional
-                     if --tui is given)
-
+TARGET               URL or path to .txt list of targets
 -a, --aggressive     Enable aggressive fuzzing & discovery
 --tui                Launch interactive Textual dashboard
 --threads N          Worker threads (default 25)
 --timeout SECONDS    HTTP timeout (default 10)
 --output-dir PATH    Results directory (default ./results)
---format FMT         Report format: markdown | json | sarif | html (default markdown)
+--format FMT         markdown | json | sarif | html | all (default markdown)
 --config PATH        YAML config file
 --no-banner          Suppress ASCII banner
+--locale en|id       Output language (default: en)
+--profile NAME       quick-triage | owasp-top10 | deep | stealth | ci
+--serve              Launch web dashboard after scan
+--persist            Save scan history to SQLite (~/.asynx6/history.db)
+--ml-filter          Apply ML false-positive filter (requires scikit-learn)
 ```
 
 ### Config file (`config.yaml`)
@@ -88,9 +128,16 @@ timeout: 10
 aggressive: false
 output_dir: results
 report_format: markdown
-user_agents:
-  - Mozilla/5.0 ...
-proxies: []
+locale: en
+persist: false
+ml_filter: false
+collaborator_domain: collab.yourdomain.com
+notifiers:
+  - kind: slack
+    webhook_url: https://hooks.slack.com/services/YOUR/WEBHOOK
+    channel: "#security"
+  - kind: discord
+    webhook_url: https://discord.com/api/webhooks/YOUR/WEBHOOK
 rate_limit:
   enabled: true
   rps: 10
@@ -98,6 +145,19 @@ rate_limit:
 ```
 
 ## Modules
+
+### V3 new packages
+- `collaborator/` — SSRF OOB detection (server + client)
+- `storage/` — SQLite scan history
+- `web/` — FastAPI dashboard
+- `notifications/` — Slack/Discord/Telegram/webhook dispatch
+- `plugins/` — entry-point plugin loader
+- `i18n/` — translation strings (en, id)
+- `ci.py` — CI/CD mode entry point
+- `profiles.py` — scan profile registry
+- `ml_fp.py` — TF-IDF + LogReg false-positive filter
+
+### Layers
 
 | Layer | Module | Purpose |
 |---|---|---|
@@ -111,16 +171,18 @@ rate_limit:
 | recon | `wayback` | Wayback Machine historical endpoints |
 | recon | `headless` | Playwright SPA crawling |
 | recon | `crawler` | Spidering + secret extraction |
+| recon | `architect` | JS bundle entropy + JWT hints |
 | vuln | `sqli` | Oracle time-based double-check |
 | vuln | `xss` | Reflected XSS |
 | vuln | `lfi` | Local file inclusion |
-| vuln | `ssrf` | SSRF + DNS rebinding |
+| vuln | `ssrf` | SSRF + IMDS + internal IP |
 | vuln | `open_redirect` | Chain detection |
 | vuln | `jwt` | none-alg / weak HS256 / RS256 confusion |
 | vuln | `graphql` | Introspection + deep query |
 | vuln | `cors` | CORS misconfiguration |
 | vuln | `headers` | Security header audit |
 | vuln | `idor` | Insecure direct object reference |
+| vuln | `websocket` | CSWSH + endpoint discovery |
 | fuzz | `directory` | Brute + 403 bypass + SPA baseline |
 | fuzz | `api` | API endpoint fuzzing |
 | fuzz | `templates` | Nuclei-style YAML templates |
@@ -154,12 +216,10 @@ See `docs/superpowers/specs/2026-06-21-asynx6-v2-design.md` for the full spec.
 ## System Requirements
 
 - Python 3.10+
-- `requests`, `rich`, `beautifulsoup4`, `urllib3`
-- `playwright` (+ `playwright install chromium`)
-- `mysql-connector-python` (for DB audit)
-- `pyyaml` (template loader)
-- `pydantic` (config validation)
-- `textual` (optional, for TUI)
+- **Required**: `requests`, `rich`, `beautifulsoup4`, `urllib3`, `playwright` (+ `playwright install chromium`), `mysql-connector-python`, `pyyaml`, `pydantic`, `textual`
+- **Optional — Dashboard**: `fastapi`, `uvicorn`
+- **Optional — ML filter**: `scikit-learn`
+- **Optional — Docs**: `mkdocs`, `mkdocs-material`
 
 ## Legal Disclaimer
 

@@ -4,6 +4,14 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# MkDocs build output
+site/
+
+# PyPI build artifacts
+dist/
+build/
+*.egg-info/
+
 # Test/coverage artifacts
 .coverage
 .coverage.*
@@ -18,8 +26,11 @@ rockyou.txt
 
 # Test runner artifacts
 run_v2_suite.py
+v3_suite.py
 test_output_v2.txt
+v3_test_output.txt
 commit_msg.txt
+v3_commit_msg.txt
 
 # Editor / OS
 .vscode/
