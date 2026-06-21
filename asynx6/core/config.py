@@ -15,6 +15,12 @@ class RateLimitConfig(BaseModel):
     burst: int = Field(default=20, gt=0)
 
 
+class NotifierConfig(BaseModel):
+    """A single notifier configuration (V3)."""
+    kind: str  # "slack" | "discord" | "telegram" | "webhook"
+    # arbitrary additional kwargs (webhook_url, chat_id, etc.)
+
+
 class ScannerConfig(BaseModel):
     """Top-level scanner configuration."""
 
@@ -29,11 +35,19 @@ class ScannerConfig(BaseModel):
     proxies: list[str] = Field(default_factory=list)
     rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
     show_banner: bool = True
+    # V3 additions
+    locale: str = "en"
+    profile: str | None = None
+    notifiers: list[NotifierConfig] = Field(default_factory=list)
+    persist: bool = False  # save scan history to SQLite
+    ml_filter: bool = False  # apply ML false-positive filter
+    collaborator_domain: str | None = None  # OOB SSRF domain
+    web_dashboard: bool = False  # serve dashboard after scan
 
     @field_validator("report_format")
     @classmethod
     def _validate_format(cls, value: str) -> str:
-        allowed = {"markdown", "json", "sarif", "html"}
+        allowed = {"markdown", "json", "sarif", "html", "all"}
         if value not in allowed:
             raise ValueError(f"report_format must be one of {allowed}, got {value!r}")
         return value

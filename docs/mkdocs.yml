@@ -1,0 +1,47 @@
+site_name: Asynx6 Web Scanner
+site_description: Advanced web security reconnaissance suite — V3
+site_url: https://github.com/asynx6/Asynx6-Web-Scanner
+repo_url: https://github.com/asynx6/Asynx6-Web-Scanner
+repo_name: asynx6/Asynx6-Web-Scanner
+
+theme:
+  name: material
+  palette:
+    primary: deep purple
+    accent: purple
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Install: getting-started/install.md
+    - Quickstart: getting-started/quickstart.md
+  - Usage:
+    - CLI: usage/cli.md
+    - Profiles: usage/profiles.md
+    - CI/CD: usage/ci.md
+  - Features:
+    - Collaborator: features/collaborator.md
+    - Notifications: features/notifications.md
+    - Web Dashboard: features/dashboard.md
+    - Storage: features/storage.md
+  - Modules:
+    - Recon: modules/recon.md
+    - Vuln: modules/vuln.md
+    - Fuzz: modules/fuzz.md
+    - Reporting: modules/reporting.md
+  - API Reference: api/index.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+
+plugins:
+  - search
