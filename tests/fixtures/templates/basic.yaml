@@ -1,0 +1,12 @@
+id: sample-status
+info:
+  name: Sample status check
+  severity: high
+  description: Verifies a probe path returns 200
+requests:
+  - method: GET
+    path:
+      - "{{BaseURL}}/probe"
+    matchers:
+      - type: status
+        status: [200]

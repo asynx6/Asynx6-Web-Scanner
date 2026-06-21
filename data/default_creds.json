@@ -1,0 +1,13 @@
+[
+  {"user": "root", "password": ""},
+  {"user": "root", "password": "root"},
+  {"user": "root", "password": "123456"},
+  {"user": "root", "password": "mysql"},
+  {"user": "admin", "password": "admin"},
+  {"user": "admin", "password": "123456"},
+  {"user": "admin", "password": "password"},
+  {"user": "mysql", "password": "mysql"},
+  {"user": "test", "password": "test"},
+  {"user": "user", "password": "user"},
+  {"user": "asynx6", "password": "asynx6"}
+]
