@@ -1,0 +1,12 @@
+id: basic-status-probe
+info:
+  name: Basic status probe
+  severity: info
+  description: Probes the target for a 200 response.
+requests:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    matchers:
+      - type: status
+        status: [200]

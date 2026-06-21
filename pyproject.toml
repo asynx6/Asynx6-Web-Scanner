@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "asynx6-web-scanner"
+version = "2.0.0"
+description = "Asynx6 Web Scanner V2 — advanced web security reconnaissance suite with Apex Predator logic"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "asynx6", email = "sahrulbeni656@gmail.com" }]
+keywords = ["security", "scanner", "recon", "bug-bounty", "pentest", "asynx6"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+]
+dependencies = [
+    "requests>=2.32",
+    "rich>=13.0",
+    "beautifulsoup4>=4.12",
+    "urllib3>=2.0",
+    "playwright>=1.40",
+    "mysql-connector-python>=9.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "textual>=0.60",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "pytest-mock>=3.12",
+    "responses>=0.25",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "types-requests",
+    "types-beautifulsoup4",
+]
+
+[project.scripts]
+asynx6 = "asynx6.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/asynx6/Asynx6-Web-Scanner"
+Repository = "https://github.com/asynx6/Asynx6-Web-Scanner.git"
+
+[tool.setuptools.packages.find]
+include = ["asynx6*"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=asynx6",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests that hit network",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["asynx6"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+fail_under = 70
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = ["E501", "B008", "B904"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E402", "B011"]
+"asynx6/tui/**/*.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.10"
+strict_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true
+exclude = ["tests/", "asynx6/tui/"]

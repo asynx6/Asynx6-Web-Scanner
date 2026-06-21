@@ -4,6 +4,29 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Test/coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.pytest_cache/
+.tox/
+.ruff_cache/
+
+# Local wordlists (often large binaries)
+rockyou.txt
+
+# Test runner artifacts
+run_v2_suite.py
+test_output_v2.txt
+commit_msg.txt
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
 # C extensions
 *.so
 
