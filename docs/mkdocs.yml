@@ -4,6 +4,8 @@ site_url: https://github.com/asynx6/Asynx6-Web-Scanner
 repo_url: https://github.com/asynx6/Asynx6-Web-Scanner
 repo_name: asynx6/Asynx6-Web-Scanner
 
+docs_dir: .
+
 theme:
   name: material
   palette:
