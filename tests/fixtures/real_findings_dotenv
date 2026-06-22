@@ -1,0 +1,8 @@
+DB_HOST=postgres.internal
+DB_PORT=5432
+DB_USER=app
+DB_PASSWORD=hunter2
+APP_KEY=base64:replace_me_with_a_real_secret
+APP_DEBUG=false
+MAIL_HOST=mail.example.com
+MAIL_PORT=587

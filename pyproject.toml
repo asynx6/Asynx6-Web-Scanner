@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "asynx6-web-scanner"
 version = "3.0.0"
-description = "Asynx6 Web Scanner V3 — advanced web security reconnaissance suite with Apex Predator logic"
+description = "Asynx6 Web Scanner V3 — web security reconnaissance suite with WAF/CDN bypass, SPA soft-404 detection, and adaptive stealth"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"

@@ -1,12 +1,10 @@
 # Asynx6 Web Scanner V3
 
-Advanced web security reconnaissance suite. Detects sensitive file leakage, hidden
-directories, server misconfigurations, modern web vulnerabilities (JWT, GraphQL,
-SSRF, WebSocket), and produces structured PoC reports.
-
-Equipped with **Apex Predator Logic**: filters false positives from WAF/CDN
-protection (HCDN), distinguishes real findings from SPA soft-404s, and applies
-adaptive stealth with jitter + header morphing.
+Web security reconnaissance suite. Detects sensitive file leakage, hidden
+directories, server misconfigurations, and modern web vulnerabilities (JWT,
+GraphQL, SSRF, WebSocket). Produces structured PoC reports with WAF/CDN
+bypass filtering, SPA soft-404 detection, and adaptive stealth (jitter +
+header morphing).
 
 ## V3 Highlights (over V2)
 
@@ -187,7 +185,7 @@ rate_limit:
 | fuzz | `api` | API endpoint fuzzing |
 | fuzz | `templates` | Nuclei-style YAML templates |
 | exfil | `db_mysql` | MySQL/MariaDB weak-creds audit |
-| exfil | `secrets_archive` | Categorize LOOT_VAULT findings |
+| exfil | `secrets_archive` | Categorize findings log |
 | reporting | `markdown` | PoC report (Markdown) |
 | reporting | `json_export` | SARIF + custom JSON |
 | reporting | `html_report` | Self-contained HTML with charts |

@@ -32,10 +32,10 @@ def _log_loot(output_dir: str, url: str, name: str, value: str) -> None:
         return
     from pathlib import Path
     from datetime import datetime
-    vault = Path(output_dir) / "LOOT_VAULT.md"
-    if not vault.exists():
-        vault.write_text(
-            "# 🗝️ LOOT VAULT\n> RAW SECRETS — DO NOT SHARE.\n\n"
+    log_path = Path(output_dir) / "findings.md"
+    if not log_path.exists():
+        log_path.write_text(
+            "# Findings Log\n> Raw secrets discovered during the scan.\n\n"
             "| Timestamp | URL | Type | Value |\n|---|---|---|---|\n",
             encoding="utf-8",
         )

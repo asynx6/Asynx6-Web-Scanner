@@ -1,0 +1,7 @@
+{
+  "instance-id": "i-0123456789abcdef0",
+  "ami-id": "ami-0abcdef1234567890",
+  "hostname": "ip-10-0-0-42.ec2.internal",
+  "local-hostname": "ip-10-0-0-42",
+  "public-hostname": "ec2-1-2-3-4.compute-1.amazonaws.com"
+}

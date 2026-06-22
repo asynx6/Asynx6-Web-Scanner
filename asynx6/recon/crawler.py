@@ -33,21 +33,21 @@ _BORING_PARAMS = {"id", "page", "s", "lang", "v"}
 
 
 def _log_secret(output_dir: str, url: str, name: str, value: str) -> None:
-    """Append raw secret to LOOT_VAULT.md (caller opts in by passing output_dir)."""
+    """Append raw secret to findings.md (caller opts in by passing output_dir)."""
     if not output_dir:
         return
     from datetime import datetime
     from pathlib import Path
-    vault = Path(output_dir) / "LOOT_VAULT.md"
-    if not vault.exists():
-        vault.write_text(
-            "# 🗝️ LOOT VAULT\n"
-            "> [!CAUTION] RAW SECRETS. DO NOT SHARE.\n\n"
+    log_path = Path(output_dir) / "findings.md"
+    if not log_path.exists():
+        log_path.write_text(
+            "# Findings Log\n"
+            "> Raw secrets discovered during the scan. Handle with care.\n\n"
             "| Timestamp | URL | Type | Value (Raw) |\n|---|---|---|---|\n",
             encoding="utf-8",
         )
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with vault.open("a", encoding="utf-8") as f:
+    with log_path.open("a", encoding="utf-8") as f:
         f.write(f"| {ts} | {url} | {name} | `{value}` |\n")
     log.warning("Sensitive loot: %s (%s) at %s", name, mask_secret(value), url)
 

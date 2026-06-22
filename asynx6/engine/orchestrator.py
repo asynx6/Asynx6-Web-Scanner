@@ -88,7 +88,7 @@ class Orchestrator:
     # -- Phase implementations ------------------------------------------------
     def _phase_chameleon(self, progress: Progress) -> None:
         from asynx6.recon.chameleon import detect_stack
-        task = progress.add_task("[omniscient]Chameleon: stack detection", total=None)
+        task = progress.add_task("[scan]stack detection", total=None)
         try:
             stack = detect_stack(self.target, client=self.client)
             self.ctx.tech_stack = stack
@@ -283,7 +283,7 @@ class Orchestrator:
 
     def _phase_secrets_archive(self, progress: Progress) -> None:
         from asynx6.exfil.secrets_archive import run as secrets_run
-        vault = self.base_dir / "LOOT_VAULT.md"
+        vault = self.base_dir / "findings.md"
         if not vault.exists():
             return
         task = progress.add_task("[yellow]Secrets archive", total=None)
