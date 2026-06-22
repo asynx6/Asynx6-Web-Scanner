@@ -19,7 +19,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e ".[docs]"
-      - run: mkdocs build --strict
+      - run: pip install mkdocs mkdocs-material
+      - run: mkdocs build --config-file docs/mkdocs.yml --strict
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
