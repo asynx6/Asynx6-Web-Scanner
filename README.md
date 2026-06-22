@@ -23,6 +23,22 @@ header morphing).
 - **i18n** — English + Indonesian output
 - **5 scan profiles** — quick-triage, owasp-top10, deep, stealth, ci
 
+### Internal refactor (3 cluster)
+
+Quality-of-engineering pass. **Zero user-facing changes** — same CLI, same YAML schema,
+same vuln modules. Targeted at testability, extensibility, and race-condition safety.
+
+| Milestone | Scope | Commit |
+|---|---|---|
+| **M1** Config & Notifier | Pydantic discriminated union for notifiers, `apply_profile()` fix, typed notification phase | `1bf7439` |
+| **M2** Phase registry | `asynx6/engine/phases.py` registry, orchestrator data-driven, plugin injection in `run()` | `eaf4bd7` |
+| **M3** HttpClient facade | `RequestStrategy` Protocol + 3 strategies (morphing headers, jitter, rate-limit), per-strategy locks, **caller-kwarg precedence fix** for `verify`/`allow_redirects` | `cf28a95` |
+
+Full breakdown in `docs/changelog.md`. Design rationale in
+`docs/superpowers/specs/2026-06-22-asynx6-v3-refactor-3-cluster-design.md`.
+
+Verification: **295 passed, 3 skipped** (`pytest`); zero regression.
+
 ## V2 Foundation (preserved)
 
 - Clean 3-layer architecture (`core` / `recon-vuln-fuzz-exfil-reporting` / `engine`)
@@ -162,6 +178,7 @@ rate_limit:
 | core | `http.py` | HTTP client with retry + jitter + adaptive rate limit |
 | core | `validators.py` | URL/secret/junk validators |
 | core | `rate_limit.py` | Per-host token bucket |
+| core | `strategies.py` | `RequestStrategy` Protocol + morphing/jitter/rate-limit strategies |
 | core | `models.py` | Domain types (Finding, Subdomain, OriginIP, ...) |
 | recon | `subdomain` | crt.sh + wordlist + wildcard detection |
 | recon | `network` | Port scan, WAF detection, CDN bypass |
@@ -191,6 +208,7 @@ rate_limit:
 | reporting | `html_report` | Self-contained HTML with charts |
 | reporting | `cvss` | CVSS v3.1 base score |
 | engine | `orchestrator` | Phase orchestration |
+| engine | `phases.py` | Phase registry (PhaseSpec, register_phase, get_phase, filter_active) |
 | engine | `scheduler` | DAG-based phase scheduling |
 | engine | `batch` | Multi-target multiprocessing pool |
 | tui | `app` | Textual interactive dashboard |
