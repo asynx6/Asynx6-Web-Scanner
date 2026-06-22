@@ -112,6 +112,8 @@ class ScanContext:
     waf: str = "None"
     # Dynamic content captured by headless crawler (used to seed wordlist)
     dynamic_content: str = ""
+    # M2: phase allowlist. Empty = run all registered phases.
+    active_phases: set[str] = field(default_factory=set)
 
     def add_finding(self, finding: Finding) -> None:
         self.findings.append(finding)
