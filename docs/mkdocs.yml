@@ -6,6 +6,8 @@ repo_name: asynx6/Asynx6-Web-Scanner
 
 # docs_dir set to current directory because this config file lives in docs/
 docs_dir: .
+# site_dir must be outside docs_dir to avoid copying build into source; place output in repo root/site
+site_dir: ../site
 
 theme:
   name: material
