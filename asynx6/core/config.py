@@ -1,12 +1,17 @@
-"""Pydantic-validated configuration for Asynx6 V2."""
+"""Pydantic-validated configuration for Asynx6 V2/V3.
+
+V3 additions:
+- Discriminated union for notifiers (slack | discord | telegram | webhook)
+- proxies / verify_ssl / follow_redirects fields
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal, Union
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RateLimitConfig(BaseModel):
@@ -15,14 +20,67 @@ class RateLimitConfig(BaseModel):
     burst: int = Field(default=20, gt=0)
 
 
-class NotifierConfig(BaseModel):
-    """A single notifier configuration (V3)."""
-    kind: str  # "slack" | "discord" | "telegram" | "webhook"
-    # arbitrary additional kwargs (webhook_url, chat_id, etc.)
+# --- Notifier configs (discriminated union on `kind`) -----------------------
+
+NotifierKind = Literal["slack", "discord", "telegram", "webhook"]
+
+
+class _BaseNotifierConfig(BaseModel):
+    """Base for all notifier configs."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: str
+
+
+class SlackNotifierConfig(_BaseNotifierConfig):
+    kind: Literal["slack"] = "slack"
+    webhook_url: str
+    channel: str | None = None
+    username: str = "Asynx6"
+
+    @field_validator("webhook_url")
+    @classmethod
+    def _validate_url(cls, value: str) -> str:
+        if not value.startswith("https://hooks.slack.com/"):
+            raise ValueError(
+                "Slack webhook_url must start with https://hooks.slack.com/"
+            )
+        return value
+
+
+class DiscordNotifierConfig(_BaseNotifierConfig):
+    kind: Literal["discord"] = "discord"
+    webhook_url: str
+    username: str = "Asynx6"
+
+
+class TelegramNotifierConfig(_BaseNotifierConfig):
+    kind: Literal["telegram"] = "telegram"
+    bot_token: str
+    chat_id: str | int
+
+
+class GenericWebhookNotifierConfig(_BaseNotifierConfig):
+    kind: Literal["webhook"] = "webhook"
+    url: str
+
+
+# Discriminated union: pydantic uses `kind` to pick the right model.
+NotifierConfig = Annotated[
+    Union[
+        SlackNotifierConfig,
+        DiscordNotifierConfig,
+        TelegramNotifierConfig,
+        GenericWebhookNotifierConfig,
+    ],
+    Field(discriminator="kind"),
+]
 
 
 class ScannerConfig(BaseModel):
     """Top-level scanner configuration."""
+
+    model_config = ConfigDict(extra="forbid")
 
     jitter_min: float = Field(default=0.5, ge=0.0)
     jitter_max: float = Field(default=2.0, ge=0.0)
@@ -38,11 +96,15 @@ class ScannerConfig(BaseModel):
     # V3 additions
     locale: str = "en"
     profile: str | None = None
-    notifiers: list[NotifierConfig] = Field(default_factory=list)
-    persist: bool = False  # save scan history to SQLite
-    ml_filter: bool = False  # apply ML false-positive filter
-    collaborator_domain: str | None = None  # OOB SSRF domain
-    web_dashboard: bool = False  # serve dashboard after scan
+    notifiers: list[NotifierConfig] = Field(default_factory=list)  # type: ignore[valid-type]
+    persist: bool = False
+    ml_filter: bool = False
+    collaborator_domain: str | None = None
+    web_dashboard: bool = False
+    # Network options
+    verify_ssl: bool = True
+    follow_redirects: bool = True
+    retry_total: int = Field(default=3, ge=0, le=10)
 
     @field_validator("report_format")
     @classmethod
@@ -83,6 +145,10 @@ def load_config(path: Path | str | None = None) -> ScannerConfig:
         from asynx6.core.exceptions import ConfigError
 
         raise ConfigError(f"Invalid YAML in {p}: {exc}") from exc
+    if not isinstance(data, dict):
+        from asynx6.core.exceptions import ConfigError
+
+        raise ConfigError(f"Top-level YAML in {p} must be a mapping, got {type(data).__name__}")
     try:
         return ScannerConfig(**data)
     except Exception as exc:
@@ -92,5 +158,9 @@ def load_config(path: Path | str | None = None) -> ScannerConfig:
 
 
 def merge_overrides(base: ScannerConfig, overrides: dict[str, Any]) -> ScannerConfig:
-    """Merge CLI overrides into a ScannerConfig (CLI wins)."""
+    """Merge CLI overrides into a ScannerConfig (CLI wins).
+
+    Precedence (highest first): CLI overrides > profile > user config > defaults.
+    This helper is the final step in the chain, so `overrides` always win.
+    """
     return base.model_copy(update=overrides)

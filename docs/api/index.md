@@ -17,7 +17,7 @@
 
 ## Modules
 
-See [Recon](modules/recon.md), [Vuln](modules/vuln.md), [Fuzz](modules/fuzz.md), [Reporting](modules/reporting.md) for module-by-module API.
+See [Recon](../modules/recon.md), [Vuln](../modules/vuln.md), [Fuzz](../modules/fuzz.md), [Reporting](../modules/reporting.md) for module-by-module API.
 
 ## V3 additions
 

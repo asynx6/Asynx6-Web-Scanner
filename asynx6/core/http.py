@@ -1,7 +1,17 @@
-"""HTTP client wrapping requests.Session with retry, jitter, morphing headers,
-and optional rate limiting.
+"""HTTP client wrapping requests.Session.
 
-V1 fix: replaces `utils.JITTER_MIN/MAX` global mutation and dual session creation.
+V3 refactor (M3):
+- The client is a thin facade. All cross-cutting concerns (morphing headers,
+  jitter, rate limiting) live in :mod:`asynx6.core.strategies` and are
+  composed via a ``strategies`` list passed to ``HttpClient``.
+- ``proxies``, ``verify``, and ``allow_redirects`` from ``ScannerConfig`` are
+  wired into ``session.request`` so they actually take effect (previously
+  the ``proxies`` field was ignored). Per-request kwargs win via
+  ``setdefault`` so callers like ``vuln.open_redirect`` can override
+  ``allow_redirects=False`` to inspect 3xx Location headers.
+- Backward compatibility: passing the old ``jitter_min``/``jitter_max``/
+  ``rate_limiter`` kwargs still works — ``HttpClient`` builds a default
+  strategy list internally.
 """
 
 from __future__ import annotations
@@ -19,6 +29,12 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from asynx6.core.rate_limit import RateLimiter
+from asynx6.core.strategies import (
+    JitterStrategy,
+    MorphingHeaderStrategy,
+    RateLimitStrategy,
+    RequestStrategy,
+)
 
 log = logging.getLogger(__name__)
 
@@ -93,27 +109,73 @@ class HttpResponse:
 
 
 class HttpClient:
-    """Thread-safe HTTP client with per-instance jitter (V1 bug fix)."""
+    """Thread-safe HTTP client driven by a list of request strategies.
+
+    The strategy list is the primary extension point. Each strategy's
+    ``before_request`` runs in order before the network call, and
+    ``after_request`` runs in order after a successful response.
+
+    For backward compatibility, you can still construct ``HttpClient`` with
+    the legacy kwargs (``jitter_min``, ``jitter_max``, ``rate_limiter``).
+    They are converted into a default strategy list internally.
+
+    Per-strategy thread safety
+    --------------------------
+    This class intentionally has no top-level lock. Each strategy owns its
+    own lock (e.g. ``JitterStrategy._lock``), so unrelated work proceeds
+    in parallel. The only shared state is the ``requests.Session`` object,
+    which is itself thread-safe for per-request use.
+    """
 
     def __init__(
         self,
         timeout: int = 10,
-        jitter_min: float = 0.5,
-        jitter_max: float = 2.0,
+        strategies: Optional[list[RequestStrategy]] = None,
+        *,
         pool_connections: int = 50,
         pool_maxsize: int = 50,
-        rate_limiter: Optional[RateLimiter] = None,
+        proxies: Optional[list[str]] = None,
+        verify_ssl: bool = True,
+        follow_redirects: bool = True,
+        retry_total: int = 3,
         extra_headers: Optional[dict[str, str]] = None,
+        # --- Backward-compat kwargs (used when ``strategies`` is None) ---
+        jitter_min: float = 0.5,
+        jitter_max: float = 2.0,
+        rate_limiter: Optional[RateLimiter] = None,
     ) -> None:
         self.timeout = timeout
-        self.jitter_min = jitter_min
-        self.jitter_max = jitter_max
-        self.rate_limiter = rate_limiter
-        self._lock = threading.Lock()
 
+        # Build strategies: explicit list wins, otherwise construct defaults
+        # from the legacy kwargs. This keeps the old call sites working.
+        if strategies is None:
+            strategies = []
+            if rate_limiter is not None:
+                strategies.append(RateLimitStrategy(rate_limiter))
+            strategies.append(JitterStrategy(jitter_min=jitter_min,
+                                             jitter_max=jitter_max))
+            strategies.append(MorphingHeaderStrategy(get_morphing_headers))
+        self.strategies: list[RequestStrategy] = strategies
+
+        # Expose the jitter strategy at ``self._jitter_strategy`` for
+        # backward-compat with callers that read ``client.jitter_min``/``max``
+        # or call ``client._jitter_sleep()``/``client.adapt_jitter()``.
+        self._jitter_strategy: JitterStrategy = next(
+            (s for s in self.strategies if isinstance(s, JitterStrategy)),
+            JitterStrategy(jitter_min=jitter_min, jitter_max=jitter_max),
+        )
+
+        # Network options — wired into session.request below.
+        self.proxies: list[str] = list(proxies or [])
+        self.verify_ssl: bool = verify_ssl
+        self.follow_redirects: bool = follow_redirects
+        self.retry_total: int = retry_total
+
+        # Set up the requests session with retry + connection pooling.
         self.session = requests.Session()
         retries = Retry(
-            total=3, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504]
+            total=retry_total, backoff_factor=0.1,
+            status_forcelist=[500, 502, 503, 504],
         )
         adapter = HTTPAdapter(
             pool_connections=pool_connections,
@@ -122,21 +184,45 @@ class HttpClient:
         )
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
-        self.session.headers.update(get_morphing_headers())
         if extra_headers:
             self.session.headers.update(extra_headers)
 
-    # -- Jitter helpers (per-instance, no global state) ----------------------
+    # -- Backward-compat attribute accessors --------------------------------
+    # The old HttpClient exposed jitter_min/jitter_max as instance attributes
+    # that callers could read AND write to adapt behavior at runtime. The new
+    # implementation keeps that interface by proxying to the JitterStrategy.
+    @property
+    def jitter_min(self) -> float:  # type: ignore[override]
+        return self._jitter_strategy.jitter_min
+
+    @jitter_min.setter
+    def jitter_min(self, value: float) -> None:
+        with self._jitter_strategy._lock:
+            self._jitter_strategy.jitter_min = value
+
+    @property
+    def jitter_max(self) -> float:  # type: ignore[override]
+        return self._jitter_strategy.jitter_max
+
+    @jitter_max.setter
+    def jitter_max(self, value: float) -> None:
+        with self._jitter_strategy._lock:
+            self._jitter_strategy.jitter_max = value
+
+    @property
+    def rate_limiter(self) -> Optional[RateLimiter]:
+        for s in self.strategies:
+            if isinstance(s, RateLimitStrategy):
+                return s._limiter
+        return None
+
     def _jitter_sleep(self) -> None:
-        time.sleep(random.uniform(self.jitter_min, self.jitter_max))
+        """Backward-compat: delegate to the JitterStrategy."""
+        self._jitter_strategy.before_request("GET", "", {})
 
     def adapt_jitter(self, status_code: int, headers: dict[str, str]) -> None:
-        """Back off if we got blocked, otherwise relax jitter."""
-        h_str = str(headers).lower()
-        if status_code in (403, 429) or "cloudflare" in h_str or "sucuri" in h_str:
-            self.jitter_min, self.jitter_max = 3.0, 7.0
-        else:
-            self.jitter_min, self.jitter_max = 0.5, 2.0
+        """Backward-compat: delegate to the JitterStrategy."""
+        self._jitter_strategy.adapt_jitter(status_code, headers)
 
     # -- Request methods ------------------------------------------------------
     def request(
@@ -150,22 +236,71 @@ class HttpClient:
     ) -> Optional[HttpResponse]:
         """Make an HTTP request. Returns None on retryable network failure.
 
-        Applies: rate limit -> jitter -> morphing-headers refresh -> request.
+        Args:
+            method: HTTP verb ("GET", "POST", ...).
+            url: Target URL.
+            rate_limit: If False, skip the rate-limit strategy even if present.
+            jitter: If False, skip the JitterStrategy even if present.
+            **kwargs: Forwarded to ``requests.Session.request``.
         """
         kwargs.setdefault("timeout", self.timeout)
-        host = urlparse(url).netloc
-        if rate_limit and self.rate_limiter is not None:
-            self.rate_limiter.acquire(host)
-        if jitter:
-            self._jitter_sleep()
-        with self._lock:
-            self.session.headers.update(get_morphing_headers())
+
+        # Build the per-request kwarg bag that strategies will read/mutate.
+        strategy_kwargs = dict(kwargs)
+        # Run ``before_request`` on each strategy in order. Each strategy may
+        # mutate ``strategy_kwargs`` (e.g. MorphingHeaderStrategy injects
+        # headers). Failures are logged and isolated.
+        for strategy in self.strategies:
+            if not rate_limit and isinstance(strategy, RateLimitStrategy):
+                continue
+            if not jitter and isinstance(strategy, JitterStrategy):
+                continue
+            try:
+                strategy.before_request(method, url, strategy_kwargs)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("strategy %s before_request failed: %s",
+                            type(strategy).__name__, exc)
+
+        # Compose the final session.request kwargs: per-request strategies +
+        # the configured network options. ``setdefault`` here is critical:
+        # callers like ``vuln.open_redirect`` pass ``allow_redirects=False``
+        # to inspect the Location header on a 302. Unconditional assignment
+        # would silently follow the redirect, losing the finding.
+        session_kwargs = dict(strategy_kwargs)
+        if self.proxies:
+            session_kwargs["proxies"] = {urlparse(url).scheme: self.proxies[0]}
+        session_kwargs.setdefault("verify", self.verify_ssl)
+        session_kwargs.setdefault("allow_redirects", self.follow_redirects)
+
         try:
-            r = self.session.request(method, url, **kwargs)
+            r = self.session.request(method, url, **session_kwargs)
         except (requests.RequestException, ConnectionError) as exc:
             log.warning("%s %s failed: %s", method, url, exc)
+            # Still notify strategies of failure (response is None).
+            for strategy in self.strategies:
+                if not rate_limit and isinstance(strategy, RateLimitStrategy):
+                    continue
+                if not jitter and isinstance(strategy, JitterStrategy):
+                    continue
+                try:
+                    strategy.after_request(method, url, None)
+                except Exception as exc2:  # noqa: BLE001
+                    log.warning("strategy %s after_request failed: %s",
+                                type(strategy).__name__, exc2)
             return None
-        self.adapt_jitter(r.status_code, r.headers)
+
+        # Run ``after_request`` on each strategy in order.
+        for strategy in self.strategies:
+            if not rate_limit and isinstance(strategy, RateLimitStrategy):
+                continue
+            if not jitter and isinstance(strategy, JitterStrategy):
+                continue
+            try:
+                strategy.after_request(method, url, r)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("strategy %s after_request failed: %s",
+                            type(strategy).__name__, exc)
+
         return HttpResponse.from_requests(r)
 
     def get(self, url: str, **kwargs: Any) -> Optional[HttpResponse]:

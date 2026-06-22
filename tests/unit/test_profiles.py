@@ -50,3 +50,37 @@ def test_apply_profile_returns_config():
     base = ScannerConfig(threads=5)
     out = apply_profile(base, "ci")
     assert isinstance(out, ScannerConfig)
+
+
+def test_apply_profile_profile_wins_over_base():
+    """Profile config should override base config (V3 fix)."""
+    from asynx6.core.config import ScannerConfig
+    base = ScannerConfig(threads=100, aggressive=True)
+    out = apply_profile(base, "ci")
+    # ci profile says threads=20, should win
+    assert out.threads == 20
+    # ci profile explicitly sets show_banner=False
+    assert out.show_banner is False
+    # ci profile explicitly sets aggressive=False → wins over base
+    assert out.aggressive is False
+
+
+def test_apply_profile_preserves_base_fields_not_in_profile():
+    """Fields not in the profile (e.g., proxies) should be preserved from base."""
+    from asynx6.core.config import ScannerConfig
+    base = ScannerConfig(
+        threads=5,
+        proxies=["http://127.0.0.1:8080"],
+        verify_ssl=False,
+    )
+    out = apply_profile(base, "ci")
+    assert out.proxies == ["http://127.0.0.1:8080"]
+    assert out.verify_ssl is False
+
+
+def test_apply_profile_invalid_raises():
+    """Unknown profile name raises KeyError."""
+    from asynx6.core.config import ScannerConfig
+    base = ScannerConfig(threads=5)
+    with pytest.raises(KeyError):
+        apply_profile(base, "nonexistent_profile")
