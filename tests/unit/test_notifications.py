@@ -63,3 +63,126 @@ class TestWebhook:
                       status=200)
         n = WebhookNotifier(url="https://example.com/hook")
         assert n.send(_notif("HIGH"))
+
+
+class TestOrchestratorNotifications:
+    """Tests for the orchestrator's notification dispatch (V3 fix).
+
+    The previous implementation used `cfg.get("kind")` on pydantic models,
+    which raised AttributeError. Now it must work with pydantic discriminator.
+    """
+
+    def test_phase_notifications_dispatches_pydantic_config(self, tmp_path):
+        """V3 fix: pydantic notifier configs are read with model_dump, not dict .get()."""
+        from asynx6.core.config import (
+            RateLimitConfig,
+            ScannerConfig,
+            SlackNotifierConfig,
+        )
+        from asynx6.core.models import Finding, Severity
+        from asynx6.engine.orchestrator import Orchestrator
+        from rich.progress import Progress
+
+        responses.start()
+        try:
+            responses.add(
+                responses.POST,
+                "https://hooks.slack.com/services/abc",
+                status=200,
+                body="ok",
+            )
+            cfg = ScannerConfig(
+                notifiers=[
+                    SlackNotifierConfig(
+                        webhook_url="https://hooks.slack.com/services/abc",
+                        channel="#sec",
+                    ),
+                ],
+                show_banner=False,
+                output_dir=tmp_path,
+                jitter_min=0.0,
+                jitter_max=0.0,
+                rate_limit=RateLimitConfig(enabled=False),
+            )
+            # Build a minimal context via direct construction (skip full Orchestrator
+            # which would try to make network calls).
+            orch = Orchestrator.__new__(Orchestrator)
+            orch.target = "https://example.com"
+            orch.config = cfg
+            from asynx6.core.models import ScanContext
+            orch.ctx = ScanContext(
+                target="https://example.com",
+                base_url="https://example.com",
+                domain="example.com",
+            )
+            orch.ctx.findings = [
+                Finding(
+                    type="Test critical",
+                    severity=Severity.CRITICAL,
+                    location="https://example.com/x",
+                    description="x",
+                ),
+            ]
+            with Progress() as p:
+                orch._phase_notifications(p)
+        finally:
+            responses.stop()
+            responses.reset()
+
+    def test_phase_notifications_empty_config(self, tmp_path):
+        """No notifiers configured → phase is a no-op."""
+        from asynx6.core.config import ScannerConfig
+        from asynx6.core.models import ScanContext
+        from asynx6.engine.orchestrator import Orchestrator
+        from rich.progress import Progress
+
+        cfg = ScannerConfig(notifiers=[], show_banner=False, output_dir=tmp_path)
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.target = "https://example.com"
+        orch.config = cfg
+        orch.ctx = ScanContext(
+            target="https://example.com",
+            base_url="https://example.com",
+            domain="example.com",
+        )
+        with Progress() as p:
+            # Should not raise
+            orch._phase_notifications(p)
+
+    def test_phase_notifications_unknown_kind(self, tmp_path):
+        """An unknown notifier kind should log a warning, not crash."""
+        from asynx6.core.config import ScannerConfig
+        from asynx6.core.models import Finding, ScanContext, Severity
+        from asynx6.engine.orchestrator import Orchestrator
+        from rich.progress import Progress
+
+        # pydantic will reject unknown kind at config-build time, so build a
+        # config with a valid kind then mutate kind to test runtime resilience.
+        cfg = ScannerConfig(
+            notifiers=[],
+            show_banner=False,
+            output_dir=tmp_path,
+        )
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.target = "https://example.com"
+        orch.config = cfg
+        orch.ctx = ScanContext(
+            target="https://example.com",
+            base_url="https://example.com",
+            domain="example.com",
+        )
+        orch.ctx.findings = [
+            Finding(
+                type="x", severity=Severity.CRITICAL,
+                location="https://example.com/", description="x",
+            ),
+        ]
+        # Inject a fake notifier object whose kind is unknown
+        class _BogusCfg:
+            def model_dump(self):
+                return {"kind": "pagerduty", "service_key": "x"}
+
+        cfg.notifiers = [_BogusCfg()]
+        with Progress() as p:
+            # Must not raise
+            orch._phase_notifications(p)

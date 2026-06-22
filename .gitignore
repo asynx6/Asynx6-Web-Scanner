@@ -18,6 +18,7 @@ build/
 htmlcov/
 coverage.xml
 .pytest_cache/
+.pytest-tmp/
 .tox/
 .ruff_cache/
 
@@ -85,6 +86,7 @@ coverage.xml
 *.lcov
 .hypothesis/
 .pytest_cache/
+.pytest-tmp/
 cover/
 
 # Translations

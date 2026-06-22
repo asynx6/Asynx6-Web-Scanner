@@ -122,6 +122,27 @@ def list_profiles() -> list[Profile]:
 
 
 def apply_profile(cfg: ScannerConfig, profile_name: str) -> ScannerConfig:
-    """Merge profile config over a base ScannerConfig (profile wins)."""
+    """Apply a profile to a base ScannerConfig (profile wins over base).
+
+    Precedence chain (highest first): CLI overrides > profile > user config > defaults.
+    CLI overrides are applied separately by `cli.py` via `merge_overrides`.
+
+    Only fields EXPLICITLY set on the profile override the base. Fields that
+    inherit the ScannerConfig default (and not set on the profile) pass through
+    from the base unchanged.
+
+    Args:
+        cfg: Base config (user-supplied YAML, or default ScannerConfig()).
+        profile_name: Name of the profile to apply.
+
+    Returns:
+        A new ScannerConfig with profile fields overlaid on the base.
+    """
     p = get_profile(profile_name)
-    return p.config.model_copy(update=cfg.model_dump())
+    # Only fields the profile explicitly set win over base. This is the key fix:
+    # previously we used `model_dump()` which emitted every field including
+    # defaults, causing every profile to clobber base settings (e.g. proxies).
+    profile_explicit = p.config.model_dump(exclude_unset=True)
+    base_dump = cfg.model_dump()
+    merged = {**base_dump, **profile_explicit}
+    return ScannerConfig(**merged)

@@ -15,6 +15,7 @@ from asynx6.core.models import Finding, Severity
 @pytest.fixture
 def cfg() -> ScannerConfig:
     """Default scanner config (low-noise defaults for tests)."""
+    from asynx6.core.config import RateLimitConfig
     return ScannerConfig(
         threads=2,
         timeout=2,
@@ -22,7 +23,7 @@ def cfg() -> ScannerConfig:
         jitter_max=0.0,
         show_banner=False,
         output_dir=Path("/tmp/asynx6-tests"),
-        rate_limit__enabled=False,
+        rate_limit=RateLimitConfig(enabled=False),
     )
 
 

@@ -310,7 +310,7 @@ class Orchestrator:
 
     def _phase_notifications(self, progress: Progress) -> None:
         """V3: dispatch notifications for CRITICAL findings."""
-        notifiers = getattr(self.config, "notifiers", None) or []
+        notifiers = list(getattr(self.config, "notifiers", None) or [])
         if not notifiers:
             return
         task = progress.add_task("[bright_red]Notifications", total=None)
@@ -324,25 +324,41 @@ class Orchestrator:
             from asynx6.notifications.discord import DiscordNotifier
             from asynx6.notifications.telegram import TelegramNotifier
             from asynx6.notifications.webhook import WebhookNotifier
-            _REGISTRY = {
-                "slack": SlackNotifier,
-                "discord": DiscordNotifier,
-                "telegram": TelegramNotifier,
-                "webhook": WebhookNotifier,
-            }
-            for cfg in notifiers:
-                kind = cfg.get("kind")
-                cls = _REGISTRY.get(kind)
-                if not cls:
+
+            # Build notifier instance from pydantic config. Registry is per-kind
+            # because each notifier takes different kwargs in its constructor.
+            def _build(cfg_obj):
+                data = cfg_obj.model_dump()
+                kind = data.pop("kind")
+                cls = {
+                    "slack": SlackNotifier,
+                    "discord": DiscordNotifier,
+                    "telegram": TelegramNotifier,
+                    "webhook": WebhookNotifier,
+                }.get(kind)
+                if cls is None:
+                    log.warning("Unknown notifier kind: %s", kind)
+                    return None
+                try:
+                    return cls(**data)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("Notifier %s init failed: %s", kind, exc)
+                    return None
+
+            payload = Notification(
+                title=f"[Asynx6] {len(crit)} CRITICAL finding(s) on {self.target}",
+                message=f"Top finding: {crit[0].type} at {crit[0].location}",
+                severity="CRITICAL",
+                url=self.target,
+            )
+            for cfg_obj in notifiers:
+                notifier = _build(cfg_obj)
+                if notifier is None:
                     continue
-                notifier = cls(**{k: v for k, v in cfg.items() if k != "kind"})
-                n = Notification(
-                    title=f"[Asynx6] {len(crit)} CRITICAL finding(s) on {self.target}",
-                    message=f"Top finding: {crit[0].type} at {crit[0].location}",
-                    severity="CRITICAL",
-                    url=self.target,
-                )
-                notifier.send(n)
+                try:
+                    notifier.send(payload)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("Notifier send failed: %s", exc)
         except Exception as exc:  # noqa: BLE001
             log.warning("notifications phase failed: %s", exc)
         progress.update(task, completed=True)
