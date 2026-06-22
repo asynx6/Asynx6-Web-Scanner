@@ -30,7 +30,7 @@ console = Console()
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="asynx6",
-        description="Asynx6 Web Scanner V3 — Apex Predator Edition",
+        description="Asynx6 Web Scanner V3 — web security reconnaissance suite",
     )
     p.add_argument("target", nargs="?", help="Target URL or path to .txt list")
     p.add_argument("-a", "--aggressive", action="store_true",

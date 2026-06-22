@@ -32,4 +32,4 @@ def test_crawler_extracts_secret(client, tmp_output_dir):
               output_dir=str(tmp_output_dir))
     types = {s["type"] for s in out["sensitive_info"]}
     assert "AWS Access Key" in types
-    assert (tmp_output_dir / "LOOT_VAULT.md").exists()
+    assert (tmp_output_dir / "findings.md").exists()

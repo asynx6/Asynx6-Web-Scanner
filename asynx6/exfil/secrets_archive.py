@@ -1,7 +1,7 @@
-"""Categorize and archive discovered secrets into a tidy JSON vault.
+"""Categorize and archive discovered secrets into a JSON file.
 
-New in V2. Reads `LOOT_VAULT.md` (written by recon.crawler / recon.architect)
-and produces `secrets.json` with type/severity/cvss for downstream tooling.
+Reads `findings.md` (written by recon.crawler / recon.architect) and produces
+`secrets.json` with type/severity/cvss for downstream tooling.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def run(vault_path: Path | str, output_dir: Path | str, **_kwargs: Any) -> dict[
     out_path = out_dir / "secrets.json"
 
     if not vault.is_file():
-        log.debug("Vault file %s not found", vault)
+        log.debug("Findings log %s not found", vault)
         return {"total": 0, "by_type": {}, "output_path": str(out_path)}
 
     # Markdown table parser: lines starting with `|`

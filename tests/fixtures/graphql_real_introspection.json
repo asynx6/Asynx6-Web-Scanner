@@ -1,0 +1,1 @@
+{"data":{"__schema":{"types":[{"name":"Query","fields":[{"name":"user"},{"name":"users"}]},{"name":"User","fields":[{"name":"id"},{"name":"email"}]}]}}}

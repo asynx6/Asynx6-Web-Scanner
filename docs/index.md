@@ -4,9 +4,8 @@ Advanced web security reconnaissance suite. Detects sensitive file leakage,
 hidden directory structures, server misconfigurations, and modern web
 vulnerabilities (JWT, GraphQL, SSRF, WebSocket) with high precision.
 
-Equipped with **Apex Predator Logic**: filters false positives from WAF/CDN
-protection, distinguishes real findings from SPA soft-404s, and applies
-adaptive stealth with jitter + header morphing.
+Includes WAF/CDN bypass filtering, SPA soft-404 detection, and adaptive
+stealth (jitter + header morphing).
 
 ## V3 Highlights
 
